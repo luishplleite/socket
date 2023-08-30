@@ -1,0 +1,46 @@
+#!/bin/bash
+
+if [[ ! -d /etc/SSHPlus ]] || [[ ! -d /etc/bot/revenda ]]; then
+    exit 0
+fi
+
+for arq in $(ls /etc/bot/revenda); do
+    _diasR=$(awk '/DIAS_REVENDA/ {print $NF}' /etc/bot/revenda/$arq/$arq)
+    if [[ $_diasR -eq 0 ]]; then
+        if grep -q 'SUBREVENDA' /etc/bot/revenda/$arq/$arq; then
+            while read -r _listsub3; do
+                _usub3="$(echo $_listsub3 | awk '{print $2}')"
+                _dir_users="/etc/bot/revenda/$_usub3/usuarios"
+                if [[ $(ls $_dir_users | wc -l) -ne 0 ]]; then
+                    for _user in $(ls $_dir_users); do
+                        usermod -L $_user
+                        pkill -U $_user
+                    done
+                fi
+                if ! grep -qw "$_usub3" /etc/bot/lista_suspensos; then
+                    mv /etc/bot/revenda/$_usub3 /etc/bot/suspensos/$_usub3
+                    grep -w "$_usub3" /etc/bot/lista_ativos >> /etc/bot/lista_suspensos
+                fi
+            done <<< "$(awk '/SUBREVENDA/ {print}' /etc/bot/revenda/$arq/$arq)"
+        fi
+
+        if [[ $(ls /etc/bot/revenda/$arq/usuarios | wc -l) -ne 0 ]]; then
+            for _user in $(ls /etc/bot/revenda/$arq/usuarios); do
+                usermod -L $_user
+                pkill -U $_user
+            done
+        fi
+
+        if ! grep -qw "$arq" /etc/bot/lista_suspensos; then
+            mv /etc/bot/revenda/$arq /etc/bot/suspensos/$arq
+            grep -w "$arq" /etc/bot/lista_ativos >> /etc/bot/lista_suspensos
+        fi
+    else
+        _days=$(($_diasR - 1))
+        sed -i "/\b$arq\b/ s/DIAS: $_diasR/DIAS: $_days/" /etc/bot/lista_ativos
+        sed -i "s/\bDIAS_REVENDA: $_diasR\b/DIAS_REVENDA: $_days/" /etc/bot/revenda/$arq/$arq
+        echo "$arq $_diasR DIAS ALTERADO PARA $_days"
+    fi
+done
+
+echo "Script executado com sucesso."
